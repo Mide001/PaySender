@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, FormEvent, ChangeEvent, useEffect } from "react";
+import React, { useState, FormEvent, ChangeEvent, useEffect, useCallback } from "react";
 import Image from "next/image";
 import { ChevronDown, Clipboard, Download, Link } from "lucide-react";
 import banksData from "@/utils/banks";
@@ -19,6 +19,10 @@ interface QRCodeResponse {
 }
 
 const Register: React.FC = () => {
+  const sortedBanks = [...banksData.data].sort((a, b) =>
+    a.name.localeCompare(b.name)
+  );
+
   const [banks, setBanks] = useState(banksData.data);
   const [formData, setFormData] = useState<FormData>({
     businessName: "",
@@ -37,7 +41,9 @@ const Register: React.FC = () => {
   const [error, setError] = useState<string>("");
   const [toastMessage, setToastMessage] = useState<string>("");
 
-  const verifyAccount = async (accountNumber: string, bankCode: string) => {
+  const verifyAccount = useCallback(async (accountNumber: string, bankCode: string) => {
+    if (!accountNumber || !bankCode || accountNumber.length !== 10) return;
+    
     setIsVerifying(true);
     setVerificationError("");
     setAccountName("");
@@ -66,30 +72,23 @@ const Register: React.FC = () => {
     } finally {
       setIsVerifying(false);
     }
-  };
+  }, []);
 
-  const handleBankSelect = (e: ChangeEvent<HTMLSelectElement>): void => {
+  const handleBankSelect = useCallback((e: ChangeEvent<HTMLSelectElement>): void => {
     const bankCode = e.target.value;
-    const selectedBank = banks.find((bank) => bank.code === bankCode);
+    const selectedBank = sortedBanks.find((bank) => bank.code === bankCode);
 
-    if (selectedBank) {
-      setSelectedBankCode(bankCode);
-      setFormData((prev) => ({
-        ...prev,
-        bankName: selectedBank.name,
-      }));
+    setSelectedBankCode(bankCode);
+    setFormData((prev) => ({
+      ...prev,
+      bankName: selectedBank?.name || "",
+    }));
 
-      // Account verification will be triggered by useEffect when both
-      // account number and bank code are available
-    } else {
-      setSelectedBankCode("");
-      setFormData((prev) => ({
-        ...prev,
-        bankName: "",
-      }));
+    if (!bankCode) {
       setAccountName("");
     }
-  };
+  }, [sortedBanks]);
+
 
   const validateForm = (): boolean => {
     if (formData.businessName.length < 2) {
@@ -109,7 +108,7 @@ const Register: React.FC = () => {
     return true;
   };
 
-  const handleInputChange = (
+  const handleInputChange = useCallback((
     e: ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ): void => {
     const { name, value } = e.target;
@@ -129,7 +128,7 @@ const Register: React.FC = () => {
     }
 
     setError("");
-  };
+  }, []);
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault();
@@ -167,110 +166,124 @@ const Register: React.FC = () => {
     setTimeout(() => setToastMessage(""), 2000);
   };
 
-  const handleDownload = async (url: string, filename: string): Promise<void> => {
+  const handleDownload = async (
+    url: string,
+    filename: string
+  ): Promise<void> => {
     let objectUrl: string | null = null;
-    
+
     try {
       setLoading(true);
-      
+
       // First load the QR code image and convert to base64
       const loadQRCode = async (): Promise<string> => {
         const qrResponse = await fetch(`http://localhost:3000${url}`);
         if (!qrResponse.ok) {
-          throw new Error('Failed to fetch QR code image');
+          throw new Error("Failed to fetch QR code image");
         }
         const qrBlob = await qrResponse.blob();
-        
+
         // Wait for QR code to load
         return new Promise((resolve, reject) => {
-          const qrImg = document.createElement('img');
+          const qrImg = document.createElement("img");
           qrImg.onload = () => {
-            const canvas = document.createElement('canvas');
+            const canvas = document.createElement("canvas");
             canvas.width = qrImg.width;
             canvas.height = qrImg.height;
-            const ctx = canvas.getContext('2d');
+            const ctx = canvas.getContext("2d");
             if (!ctx) {
-              reject(new Error('Failed to get canvas context'));
+              reject(new Error("Failed to get canvas context"));
               return;
             }
             ctx.drawImage(qrImg, 0, 0);
-            resolve(canvas.toDataURL('image/png'));
+            resolve(canvas.toDataURL("image/png"));
           };
-          qrImg.onerror = () => reject(new Error('Failed to load QR code image'));
+          qrImg.onerror = () =>
+            reject(new Error("Failed to load QR code image"));
           qrImg.src = URL.createObjectURL(qrBlob);
         });
       };
-  
+
       // Load the QR code first
       const qrBase64 = await loadQRCode();
-  
+
       // Fetch and validate SVG template
       const templateResponse = await fetch("/assets/qr-template.svg");
       if (!templateResponse.ok) {
-        throw new Error('Failed to fetch SVG template');
+        throw new Error("Failed to fetch SVG template");
       }
-      
+
       let svgText = await templateResponse.text();
-      if (!svgText.includes('BUSINESS_NAME') || !svgText.includes('id="qrCode"')) {
-        throw new Error('Invalid SVG template format');
+      if (
+        !svgText.includes("BUSINESS_NAME") ||
+        !svgText.includes('id="qrCode"')
+      ) {
+        throw new Error("Invalid SVG template format");
       }
-  
+
       // Replace placeholders
       const businessName = formData.businessName.trim().toUpperCase();
       if (!businessName) {
-        throw new Error('Business name is required');
+        throw new Error("Business name is required");
       }
-  
+
       svgText = svgText
         .replace(/BUSINESS_NAME/g, businessName)
         .replace(
           /<image id="qrCode"[^>]*>/,
           `<image id="qrCode" x="32" y="32" width="256" height="256" href="${qrBase64}" preserveAspectRatio="xMidYMid meet"/>`
         );
-  
+
       // Create final image
-      const finalImage = document.createElement('img');
-      
+      const finalImage = document.createElement("img");
+
       // Convert SVG to data URL
-      const svgBlob = new Blob([svgText], { type: 'image/svg+xml' });
+      const svgBlob = new Blob([svgText], { type: "image/svg+xml" });
       objectUrl = URL.createObjectURL(svgBlob);
-      
+
       await new Promise<void>((resolve, reject) => {
         finalImage.onload = async () => {
           try {
-            const canvas = document.createElement('canvas');
-            canvas.width = 800;  
+            const canvas = document.createElement("canvas");
+            canvas.width = 800;
             canvas.height = 400;
-            
-            const ctx = canvas.getContext('2d');
+
+            const ctx = canvas.getContext("2d");
             if (!ctx) {
-              throw new Error('Failed to get canvas context');
+              throw new Error("Failed to get canvas context");
             }
-            
+
             // Draw the complete image
             ctx.drawImage(finalImage, 0, 0, canvas.width, canvas.height);
-            
+
             // Create download link
-            const link = document.createElement('a');
-            link.download = `${filename.replace(/[^a-z0-9]/gi, '_')}-qr-code.png`;
-            link.href = canvas.toDataURL('image/png');
+            const link = document.createElement("a");
+            link.download = `${filename.replace(
+              /[^a-z0-9]/gi,
+              "_"
+            )}-qr-code.png`;
+            link.href = canvas.toDataURL("image/png");
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
-            
+
             resolve();
           } catch (error) {
             reject(error);
           }
         };
-        
-        finalImage.onerror = () => reject(new Error('Failed to load final image'));
-        finalImage.src = objectUrl || ''; 
+
+        finalImage.onerror = () =>
+          reject(new Error("Failed to load final image"));
+        finalImage.src = objectUrl || "";
       });
-  
     } catch (error) {
       console.error("Error generating QR code:", error);
-      setError(error instanceof Error ? error.message : "Failed to generate QR code image");
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Failed to generate QR code image"
+      );
     } finally {
       if (objectUrl) {
         URL.revokeObjectURL(objectUrl);
@@ -280,15 +293,14 @@ const Register: React.FC = () => {
   };
 
   useEffect(() => {
-    const sortedBanks = [...banks].sort((a, b) => a.name.localeCompare(b.name));
-    setBanks(sortedBanks);
-  }, [banks]);
+    const timeoutId = setTimeout(() => {
+      if (formData.accountNumber.length === 10 && selectedBankCode) {
+        verifyAccount(formData.accountNumber, selectedBankCode);
+      }
+    }, 500); // 500ms debounce
 
-  useEffect(() => {
-    if (formData.accountNumber.length === 10 && selectedBankCode) {
-      verifyAccount(formData.accountNumber, selectedBankCode);
-    }
-  }, [formData.accountNumber, selectedBankCode]);
+    return () => clearTimeout(timeoutId);
+  }, [formData.accountNumber, selectedBankCode, verifyAccount]);
 
   return (
     <div className="min-h-screen bg-gray-50">
