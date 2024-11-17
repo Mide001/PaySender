@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400">
+<!-- Definitions for reusable elements -->
+<defs>
+<!-- Gradient backgrounds -->
+<linearGradient id="brandGradient" x1="0" y1="0" x2="1" y2="1">
+<stop offset="0%" style="stop-color:#3B82F6"/>
+<stop offset="100%" style="stop-color:#1D4ED8"/>
+</linearGradient>
+<!-- Subtle background pattern -->
+<pattern id="subtlePattern" x="0" y="0" width="40" height="40" patternUnits="userSpaceOnUse">
+<path d="M0 0h40v40H0z" fill="none"/>
+<circle cx="20" cy="20" r="1" fill="#E5E7EB" opacity="0.5"/>
+</pattern>
+<!-- Card shadow -->
+<filter id="cardShadow">
+<feDropShadow dx="0" dy="4" stdDeviation="6" flood-opacity="0.1"/>
+</filter>
+<!-- QR code container shadow -->
+<filter id="qrShadow">
+<feDropShadow dx="0" dy="2" stdDeviation="4" flood-opacity="0.1"/>
+</filter>
+</defs>
+<!-- Main background with pattern -->
+<rect width="800" height="400" fill="white"/>
+<rect width="800" height="400" fill="url(#subtlePattern)"/>
+<!-- Left section -->
+<g transform="translate(40, 40)">
+<!-- Brand section -->
+<g>
+<!-- Logo background -->
+<rect width="48" height="48" rx="12" fill="url(#brandGradient)"/>
+<text x="24" y="32" text-anchor="middle" fill="white" font-size="20" font-weight="700" font-family="Inter, sans-serif">P2P</text>
+<!-- Brand name - Moved slightly to the right -->
+<text x="84" y="32" fill="#111827" font-size="24" font-weight="700" font-family="Inter, sans-serif">PaySender</text>
+</g>
+<!-- Main heading - Adjusted spacing -->
+<g transform="translate(0, 100)">
+<text fill="#111827" font-size="44" font-weight="800" font-family="Inter, sans-serif" letter-spacing="-0.02em">
+<tspan x="0" dy="0">Merchant</tspan>
+<tspan x="0" dy="52" fill="url(#brandGradient)">QR Code</tspan>
+</text>
+</g>
+<!-- Tagline - Moved closer to header -->
+<text x="0" y="180" fill="#4B5563" font-size="20" font-family="Inter, sans-serif">
+Making payments easier and faster
+</text>
+<!-- Business details - Made larger -->
+<g transform="translate(0, 240)">
+<!-- Business name placeholder - Increased size -->
+<text id="businessName" x="0" y="0" fill="#111827" font-size="24" font-weight="600" font-family="Inter, sans-serif">
+BUSINESS_NAME
+</text>
+</g>
+<!-- Powered by section -->
+<g transform="translate(0, 320)">
+<text x="180" y="0" text-anchor="middle" fill="#6B7280" font-size="14" font-family="Inter, sans-serif">
+Powered by PaySender 
+</text>
+</g>
+</g>
+<!-- Vertical separator with gradient -->
+<line x1="400" y1="40" x2="400" y2="360" stroke="url(#brandGradient)" stroke-opacity="0.1" stroke-width="2"/>
+<!-- Right section - QR Code area -->
+<g transform="translate(440, 40)">
+<!-- QR container with styling -->
+<rect width="320" height="320" rx="16" fill="white" filter="url(#qrShadow)"/>
+<!-- QR code image placeholder - will be added dynamically -->
+<image id="qrCode" x="32" y="32" width="256" height="256"/>
+<!-- Scan text -->
+<text x="160" y="380" text-anchor="middle" fill="#111827" font-size="18" font-weight="600" font-family="Inter, sans-serif">
+Scan to Pay
+</text>
+</g>
+<!-- Decorative elements -->
+<circle cx="720" cy="80" r="40" fill="url(#brandGradient)" opacity="0.1"/>
+<circle cx="80" cy="320" r="60" fill="url(#brandGradient)" opacity="0.05"/>
+</svg>
