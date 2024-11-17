@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, FormEvent, ChangeEvent, useEffect } from "react";
+import Image from "next/image";
 import { ChevronDown, Clipboard, Download, Link } from "lucide-react";
 import banksData from "@/utils/banks";
 
@@ -166,79 +167,122 @@ const Register: React.FC = () => {
     setTimeout(() => setToastMessage(""), 2000);
   };
 
-  const handleDownload = async (
-    url: string,
-    filename: string
-  ): Promise<void> => {
+  const handleDownload = async (url: string, filename: string): Promise<void> => {
+    let objectUrl: string | null = null;
+    
     try {
-      // Fetch the QR code image
-      const qrResponse = await fetch(`http://localhost:3000${url}`);
-      const qrBlob = await qrResponse.blob();
-
-      // Convert QR code to base64
-      const qrBase64 = await new Promise<string>((resolve) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result as string);
-        reader.readAsDataURL(qrBlob);
-      });
-
-      // Fetch our SVG template
-      const response = await fetch("/assets/qr-template.svg");
-      let svgText = await response.text();
-
-      // Replace placeholders with actual data
-      svgText = svgText
-        .replace("BUSINESS_NAME", formData.businessName.toLocaleUpperCase())
-
-        .replace(
-          '<image id="qrCode" x="32" y="32" width="256" height="256"/>',
-          `<image id="qrCode" x="32" y="32" width="256" height="256" href="${qrBase64}"/>`
-        );
-
-      // Create SVG blob
-      const svgBlob = new Blob([svgText], { type: "image/svg+xml" });
-
-      // Convert SVG to PNG for better compatibility
-      const canvas = document.createElement("canvas");
-      const ctx = canvas.getContext("2d");
-
-      if (!ctx) {
-        throw new Error("Could not get canvas context");
+      setLoading(true);
+      
+      // First load the QR code image and convert to base64
+      const loadQRCode = async (): Promise<string> => {
+        const qrResponse = await fetch(`http://localhost:3000${url}`);
+        if (!qrResponse.ok) {
+          throw new Error('Failed to fetch QR code image');
+        }
+        const qrBlob = await qrResponse.blob();
+        
+        // Wait for QR code to load
+        return new Promise((resolve, reject) => {
+          const qrImg = document.createElement('img');
+          qrImg.onload = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = qrImg.width;
+            canvas.height = qrImg.height;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+              reject(new Error('Failed to get canvas context'));
+              return;
+            }
+            ctx.drawImage(qrImg, 0, 0);
+            resolve(canvas.toDataURL('image/png'));
+          };
+          qrImg.onerror = () => reject(new Error('Failed to load QR code image'));
+          qrImg.src = URL.createObjectURL(qrBlob);
+        });
+      };
+  
+      // Load the QR code first
+      const qrBase64 = await loadQRCode();
+  
+      // Fetch and validate SVG template
+      const templateResponse = await fetch("/assets/qr-template.svg");
+      if (!templateResponse.ok) {
+        throw new Error('Failed to fetch SVG template');
       }
-
-      // Set canvas size
-      canvas.width = 800;
-      canvas.height = 400;
-
-      // Create image from SVG
-      const img = new Image();
-      img.src = URL.createObjectURL(svgBlob);
-
-      await new Promise((resolve, reject) => {
-        img.onload = resolve;
-        img.onerror = reject;
+      
+      let svgText = await templateResponse.text();
+      if (!svgText.includes('BUSINESS_NAME') || !svgText.includes('id="qrCode"')) {
+        throw new Error('Invalid SVG template format');
+      }
+  
+      // Replace placeholders
+      const businessName = formData.businessName.trim().toUpperCase();
+      if (!businessName) {
+        throw new Error('Business name is required');
+      }
+  
+      svgText = svgText
+        .replace(/BUSINESS_NAME/g, businessName)
+        .replace(
+          /<image id="qrCode"[^>]*>/,
+          `<image id="qrCode" x="32" y="32" width="256" height="256" href="${qrBase64}" preserveAspectRatio="xMidYMid meet"/>`
+        );
+  
+      // Create final image
+      const finalImage = document.createElement('img');
+      
+      // Convert SVG to data URL
+      const svgBlob = new Blob([svgText], { type: 'image/svg+xml' });
+      objectUrl = URL.createObjectURL(svgBlob);
+      
+      await new Promise<void>((resolve, reject) => {
+        finalImage.onload = async () => {
+          try {
+            const canvas = document.createElement('canvas');
+            canvas.width = 800;  
+            canvas.height = 400;
+            
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+              throw new Error('Failed to get canvas context');
+            }
+            
+            // Draw the complete image
+            ctx.drawImage(finalImage, 0, 0, canvas.width, canvas.height);
+            
+            // Create download link
+            const link = document.createElement('a');
+            link.download = `${filename.replace(/[^a-z0-9]/gi, '_')}-qr-code.png`;
+            link.href = canvas.toDataURL('image/png');
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            resolve();
+          } catch (error) {
+            reject(error);
+          }
+        };
+        
+        finalImage.onerror = () => reject(new Error('Failed to load final image'));
+        finalImage.src = objectUrl || ''; 
       });
-
-      // Draw image to canvas
-      ctx.drawImage(img, 0, 0);
-
-      // Create download link
-      const link = document.createElement("a");
-      link.download = `${filename}-qr-code.png`;
-      link.href = canvas.toDataURL("image/png");
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+  
     } catch (error) {
       console.error("Error generating QR code:", error);
-      setError("Failed to generate QR code image");
+      setError(error instanceof Error ? error.message : "Failed to generate QR code image");
+    } finally {
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+      setLoading(false);
     }
   };
 
   useEffect(() => {
     const sortedBanks = [...banks].sort((a, b) => a.name.localeCompare(b.name));
     setBanks(sortedBanks);
-  }, []);
+  }, [banks]);
 
   useEffect(() => {
     if (formData.accountNumber.length === 10 && selectedBankCode) {
@@ -378,10 +422,10 @@ const Register: React.FC = () => {
                   <div className="relative group">
                     <div className="w-4 h-4 text-gray-400 cursor-help">ⓘ</div>
                     <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block w-64 p-2 bg-gray-900 text-white text-sm rounded shadow-lg z-10">
-                      Your Onboard wallet address where you'll receive USDC/cNGN
-                      payments. Must start with '0x' followed by 40 hexadecimal
-                      characters. Please double-check the address as
-                      transactions cannot be reversed.
+                      Your Onboard wallet address where you will receive
+                      USDC/cNGN payments. Must start with &apos;0x&apos;
+                      followed by 40 hexadecimal characters. Please double-check
+                      the address as transactions cannot be reversed.
                     </div>
                   </div>
                 </div>
@@ -426,10 +470,11 @@ const Register: React.FC = () => {
                     Your QR Code
                   </div>
                   <div className="flex justify-center">
-                    <img
+                    <Image
                       src={`http://localhost:3000${qrCodeData.qrCodeUrl}`}
                       alt="Business QR Code"
-                      className="w-48 h-48"
+                      width={192}
+                      height={192}
                     />
                   </div>
                 </div>
@@ -466,8 +511,18 @@ const Register: React.FC = () => {
                         )
                       }
                       className="flex-1 py-2 px-4 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
+                      disabled={loading}
                     >
-                      <Download /> Download QR Code
+                      {loading ? (
+                        <>
+                          <span className="animate-spin inline-block w-4 h-4 border-2 border-gray-500 border-t-transparent rounded-full"></span>
+                          <span>Preparing Download...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Download /> Download QR Code
+                        </>
+                      )}
                     </button>
                     <button
                       onClick={() =>
