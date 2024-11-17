@@ -1,5 +1,11 @@
 "use client";
-import React, { useState, FormEvent, ChangeEvent, useEffect, useCallback } from "react";
+import React, {
+  useState,
+  FormEvent,
+  ChangeEvent,
+  useEffect,
+  useCallback,
+} from "react";
 import Image from "next/image";
 import { ChevronDown, Clipboard, Download, Link } from "lucide-react";
 import banksData from "@/utils/banks";
@@ -17,6 +23,9 @@ interface QRCodeResponse {
   paymentUrl: string;
   encodedData: string;
 }
+
+const BASE_URL =
+  process.env.NEXT_PUBLIC_FRONTEND_URL || "http://localhost:3000";
 
 const Register: React.FC = () => {
   const sortedBanks = [...banksData.data].sort((a, b) =>
@@ -41,54 +50,59 @@ const Register: React.FC = () => {
   const [error, setError] = useState<string>("");
   const [toastMessage, setToastMessage] = useState<string>("");
 
-  const verifyAccount = useCallback(async (accountNumber: string, bankCode: string) => {
-    if (!accountNumber || !bankCode || accountNumber.length !== 10) return;
-    
-    setIsVerifying(true);
-    setVerificationError("");
-    setAccountName("");
+  const verifyAccount = useCallback(
+    async (accountNumber: string, bankCode: string) => {
+      if (!accountNumber || !bankCode || accountNumber.length !== 10) return;
 
-    try {
-      const response = await fetch("/api/verify-account", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          account_number: accountNumber,
-          bank_code: bankCode,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (data.status === true && data.data?.account_name) {
-        setAccountName(data.data.account_name);
-      } else {
-        setVerificationError(data.message || "Could not verify account");
-      }
-    } catch (error) {
-      setVerificationError("Error verifying account. Please try again.");
-    } finally {
-      setIsVerifying(false);
-    }
-  }, []);
-
-  const handleBankSelect = useCallback((e: ChangeEvent<HTMLSelectElement>): void => {
-    const bankCode = e.target.value;
-    const selectedBank = sortedBanks.find((bank) => bank.code === bankCode);
-
-    setSelectedBankCode(bankCode);
-    setFormData((prev) => ({
-      ...prev,
-      bankName: selectedBank?.name || "",
-    }));
-
-    if (!bankCode) {
+      setIsVerifying(true);
+      setVerificationError("");
       setAccountName("");
-    }
-  }, [sortedBanks]);
 
+      try {
+        const response = await fetch("/api/verify-account", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            account_number: accountNumber,
+            bank_code: bankCode,
+          }),
+        });
+
+        const data = await response.json();
+
+        if (data.status === true && data.data?.account_name) {
+          setAccountName(data.data.account_name);
+        } else {
+          setVerificationError(data.message || "Could not verify account");
+        }
+      } catch (error) {
+        setVerificationError("Error verifying account. Please try again.");
+      } finally {
+        setIsVerifying(false);
+      }
+    },
+    []
+  );
+
+  const handleBankSelect = useCallback(
+    (e: ChangeEvent<HTMLSelectElement>): void => {
+      const bankCode = e.target.value;
+      const selectedBank = sortedBanks.find((bank) => bank.code === bankCode);
+
+      setSelectedBankCode(bankCode);
+      setFormData((prev) => ({
+        ...prev,
+        bankName: selectedBank?.name || "",
+      }));
+
+      if (!bankCode) {
+        setAccountName("");
+      }
+    },
+    [sortedBanks]
+  );
 
   const validateForm = (): boolean => {
     if (formData.businessName.length < 2) {
@@ -108,27 +122,28 @@ const Register: React.FC = () => {
     return true;
   };
 
-  const handleInputChange = useCallback((
-    e: ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ): void => {
-    const { name, value } = e.target;
+  const handleInputChange = useCallback(
+    (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>): void => {
+      const { name, value } = e.target;
 
-    if (name === "accountNumber" && value.length > 10) {
-      return;
-    }
+      if (name === "accountNumber" && value.length > 10) {
+        return;
+      }
 
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
+      setFormData((prev) => ({
+        ...prev,
+        [name]: value,
+      }));
 
-    if (name === "accountNumber" && value.length !== 10) {
-      setAccountName("");
-      setVerificationError("");
-    }
+      if (name === "accountNumber" && value.length !== 10) {
+        setAccountName("");
+        setVerificationError("");
+      }
 
-    setError("");
-  }, []);
+      setError("");
+    },
+    []
+  );
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault();
@@ -177,7 +192,7 @@ const Register: React.FC = () => {
 
       // First load the QR code image and convert to base64
       const loadQRCode = async (): Promise<string> => {
-        const qrResponse = await fetch(`http://localhost:3000${url}`);
+        const qrResponse = await fetch(`${BASE_URL}${url}`);
         if (!qrResponse.ok) {
           throw new Error("Failed to fetch QR code image");
         }
@@ -483,10 +498,11 @@ const Register: React.FC = () => {
                   </div>
                   <div className="flex justify-center">
                     <Image
-                      src={`http://localhost:3000${qrCodeData.qrCodeUrl}`}
+                      src={`${BASE_URL}${qrCodeData.qrCodeUrl}`}
                       alt="Business QR Code"
                       width={192}
                       height={192}
+                      unoptimized
                     />
                   </div>
                 </div>
@@ -498,13 +514,13 @@ const Register: React.FC = () => {
                         Payment URL:
                       </span>
                       <div className="text-sm truncate">
-                        {qrCodeData.paymentUrl}
+                        {`${BASE_URL}${qrCodeData.paymentUrl}`}
                       </div>
                     </div>
                     <button
                       onClick={() =>
                         copyToClipboard(
-                          qrCodeData.paymentUrl,
+                          `${BASE_URL}${qrCodeData.paymentUrl}`,
                           "Payment URL copied!"
                         )
                       }
@@ -539,7 +555,7 @@ const Register: React.FC = () => {
                     <button
                       onClick={() =>
                         window.open(
-                          `http://localhost:3000${qrCodeData.qrCodeUrl}`,
+                          `${BASE_URL}${qrCodeData.qrCodeUrl}`,
                           "_blank"
                         )
                       }
