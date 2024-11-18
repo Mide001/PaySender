@@ -29,10 +29,6 @@ const nextConfig = {
     config.externals.push("pino-pretty", "lokijs", "encoding");
     return config;
   },
-  // Enable Edge Runtime for better performance (optional)
-  experimental: {
-    runtime: "edge",
-  },
 };
 
 module.exports = nextConfig;

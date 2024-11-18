@@ -161,7 +161,10 @@ const Register: React.FC = () => {
         body: JSON.stringify(formData),
       });
 
+      console.log("Response: ", response);
+
       const data = await response.json();
+      console.log("Data: ", data);
 
       if (!response.ok) {
         throw new Error(data.error || "Failed to generate QR code");
