@@ -24,6 +24,9 @@ const nextConfig = {
       },
     ],
   },
+  experimental: {
+    appDir: true,
+  },
   reactStrictMode: true,
   webpack: (config) => {
     config.externals.push("pino-pretty", "lokijs", "encoding");

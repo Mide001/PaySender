@@ -18,8 +18,7 @@ interface FormData {
 }
 
 interface QRCodeResponse {
-  filename: string;
-  qrCodeUrl: string;
+  qrCodeDataUrl: string;
   paymentUrl: string;
   encodedData: string;
 }
@@ -185,45 +184,19 @@ const Register: React.FC = () => {
   };
 
   const handleDownload = async (
-    url: string,
-    filename: string
+    dataUrl: string,
+    businessName: string
   ): Promise<void> => {
-    let objectUrl: string | null = null;
-
     try {
       setLoading(true);
 
-      // First load the QR code image and convert to base64
-      const loadQRCode = async (): Promise<string> => {
-        const qrResponse = await fetch(`${BASE_URL}${url}`);
-        if (!qrResponse.ok) {
-          throw new Error("Failed to fetch QR code image");
-        }
-        const qrBlob = await qrResponse.blob();
-
-        // Wait for QR code to load
-        return new Promise((resolve, reject) => {
-          const qrImg = document.createElement("img");
-          qrImg.onload = () => {
-            const canvas = document.createElement("canvas");
-            canvas.width = qrImg.width;
-            canvas.height = qrImg.height;
-            const ctx = canvas.getContext("2d");
-            if (!ctx) {
-              reject(new Error("Failed to get canvas context"));
-              return;
-            }
-            ctx.drawImage(qrImg, 0, 0);
-            resolve(canvas.toDataURL("image/png"));
-          };
-          qrImg.onerror = () =>
-            reject(new Error("Failed to load QR code image"));
-          qrImg.src = URL.createObjectURL(qrBlob);
-        });
-      };
-
-      // Load the QR code first
-      const qrBase64 = await loadQRCode();
+      // First load the QR code image
+      const qrImg = document.createElement("img");
+      await new Promise<void>((resolve, reject) => {
+        qrImg.onload = () => resolve();
+        qrImg.onerror = () => reject(new Error("Failed to load QR code"));
+        qrImg.src = dataUrl;
+      });
 
       // Fetch and validate SVG template
       const templateResponse = await fetch("/assets/qr-template.svg");
@@ -240,43 +213,37 @@ const Register: React.FC = () => {
       }
 
       // Replace placeholders
-      const businessName = formData.businessName.trim().toUpperCase();
-      if (!businessName) {
-        throw new Error("Business name is required");
-      }
-
+      const businessNameFormatted = businessName.trim().toUpperCase();
       svgText = svgText
-        .replace(/BUSINESS_NAME/g, businessName)
+        .replace(/BUSINESS_NAME/g, businessNameFormatted)
         .replace(
           /<image id="qrCode"[^>]*>/,
-          `<image id="qrCode" x="32" y="32" width="256" height="256" href="${qrBase64}" preserveAspectRatio="xMidYMid meet"/>`
+          `<image id="qrCode" x="32" y="32" width="256" height="256" href="${dataUrl}" preserveAspectRatio="xMidYMid meet"/>`
         );
 
       // Create final image
-      const finalImage = document.createElement("img");
-
-      // Convert SVG to data URL
       const svgBlob = new Blob([svgText], { type: "image/svg+xml" });
-      objectUrl = URL.createObjectURL(svgBlob);
+      const objectUrl = URL.createObjectURL(svgBlob);
 
-      await new Promise<void>((resolve, reject) => {
-        finalImage.onload = async () => {
-          try {
+      try {
+        const finalImage = document.createElement("img");
+        await new Promise<void>((resolve, reject) => {
+          finalImage.onload = async () => {
             const canvas = document.createElement("canvas");
             canvas.width = 800;
             canvas.height = 400;
-
             const ctx = canvas.getContext("2d");
+
             if (!ctx) {
-              throw new Error("Failed to get canvas context");
+              reject(new Error("Failed to get canvas context"));
+              return;
             }
 
-            // Draw the complete image
             ctx.drawImage(finalImage, 0, 0, canvas.width, canvas.height);
 
             // Create download link
             const link = document.createElement("a");
-            link.download = `${filename.replace(
+            link.download = `${businessNameFormatted.replace(
               /[^a-z0-9]/gi,
               "_"
             )}-qr-code.png`;
@@ -284,17 +251,15 @@ const Register: React.FC = () => {
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
-
             resolve();
-          } catch (error) {
-            reject(error);
-          }
-        };
-
-        finalImage.onerror = () =>
-          reject(new Error("Failed to load final image"));
-        finalImage.src = objectUrl || "";
-      });
+          };
+          finalImage.onerror = () =>
+            reject(new Error("Failed to load final image"));
+          finalImage.src = objectUrl;
+        });
+      } finally {
+        URL.revokeObjectURL(objectUrl);
+      }
     } catch (error) {
       console.error("Error generating QR code:", error);
       setError(
@@ -303,9 +268,6 @@ const Register: React.FC = () => {
           : "Failed to generate QR code image"
       );
     } finally {
-      if (objectUrl) {
-        URL.revokeObjectURL(objectUrl);
-      }
       setLoading(false);
     }
   };
@@ -501,7 +463,7 @@ const Register: React.FC = () => {
                   </div>
                   <div className="flex justify-center">
                     <Image
-                      src={`${BASE_URL}${qrCodeData.qrCodeUrl}`}
+                      src={qrCodeData.qrCodeDataUrl}
                       alt="Business QR Code"
                       width={192}
                       height={192}
@@ -537,7 +499,7 @@ const Register: React.FC = () => {
                     <button
                       onClick={() =>
                         handleDownload(
-                          qrCodeData.qrCodeUrl,
+                          qrCodeData.qrCodeDataUrl,
                           formData.businessName
                         )
                       }
@@ -557,10 +519,7 @@ const Register: React.FC = () => {
                     </button>
                     <button
                       onClick={() =>
-                        window.open(
-                          `${BASE_URL}${qrCodeData.qrCodeUrl}`,
-                          "_blank"
-                        )
+                        window.open(qrCodeData.qrCodeDataUrl, "_blank")
                       }
                       className="flex-1 py-2 px-4 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
                     >

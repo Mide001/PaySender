@@ -1,36 +1,25 @@
 import qr from "qrcode";
-import fs from "fs";
-import path from "path";
+import { Buffer } from 'buffer';
 
 interface BusinessData {
     businessName: string;
     bankName: string;
     accountNumber: string;
     walletAddress: string;
-    [key: string]: string; 
+    [key: string]: string;
 }
 
 interface QRGenerationResult {
-    fileName: string;
-    qrCodeUrl: string;
+    qrCodeDataUrl: string; 
     paymentUrl: string;
     encodedData: string;
 }
 
 export class BusinessQRGenerator {
     private readonly baseUrl: string;
-    private readonly outputDir: string;
 
     constructor(baseUrl: string) {
         this.baseUrl = baseUrl;
-        this.outputDir = path.join(process.cwd(), "public", "qrcodes");
-        this.ensureOutputDirectory();
-    }
-
-    private ensureOutputDirectory() {
-        if (!fs.existsSync(this.outputDir)) {
-            fs.mkdirSync(this.outputDir, { recursive: true });
-        }
     }
 
     private encodedData(data: BusinessData): string {
@@ -39,7 +28,6 @@ export class BusinessQRGenerator {
 
     public async generateBusinessQR(data: BusinessData): Promise<QRGenerationResult> {
         try {
-
             // Ensure data is an object
             if (!data || typeof data !== 'object') {
                 throw new Error('Invalid data format: expected an object');
@@ -58,23 +46,19 @@ export class BusinessQRGenerator {
             const paymentUrl = new URL(`${this.baseUrl}/payment`);
             paymentUrl.searchParams.append('data', encodedData);
 
-            const fileName = `business_${Date.now()}.png`;
-            const filePath = path.join(this.outputDir, fileName);
-
-            await qr.toFile(filePath, paymentUrl.toString(), {
+            // Generate QR code as data URL instead of file
+            const qrCodeDataUrl = await qr.toDataURL(paymentUrl.toString(), {
                 errorCorrectionLevel: 'H',
                 margin: 1,
                 width: 300,
                 color: {
                     dark: '#000000',
                     light: '#ffffff',
-                },
+                }
             });
 
-
             return {
-                fileName,
-                qrCodeUrl: `/qrcodes/${fileName}`,
+                qrCodeDataUrl,
                 paymentUrl: paymentUrl.toString(),
                 encodedData,
             };
@@ -88,7 +72,6 @@ export class BusinessQRGenerator {
     }
 
     private validateData(data: BusinessData): void {
-
         const requiredFields = [
             "businessName",
             "bankName",
