@@ -479,7 +479,7 @@ const Register: React.FC = () => {
                         Payment URL:
                       </span>
                       <div className="text-sm truncate">
-                        {`${BASE_URL}${qrCodeData.paymentUrl}`}
+                        {`${qrCodeData.paymentUrl}`}
                       </div>
                     </div>
                     <button
